@@ -16,7 +16,7 @@
     "commands": [
       {
         "command": "explainify.analyzeWorkspace",
-        "title": "Analyze File for Vulnerabilities"
+        "title": "Explainify: Scan for Vulnerabilities"
       }
     ],
     "themes": [

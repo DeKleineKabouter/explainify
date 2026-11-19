@@ -5,13 +5,18 @@ import os
 import shutil
 import logging
 import Semgrep
-from google import genai
+from openai import OpenAI
 from dotenv import load_dotenv
 from typing import List
 
 load_dotenv()
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-client = genai.Client(api_key=GOOGLE_API_KEY)
+
+client = OpenAI(
+    base_url="https://chat.science.ru.nl/api",
+    api_key=os.environ["RAD_API_KEY"],
+    timeout=120.0,
+    max_retries=0,  
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -48,19 +53,35 @@ Now provide your explanation by filling in the following template:
 - Suggested fix: [do not mention the message, describe it as if you suggested the fix]
 """
 
-def call_gemini(system_prompt: str, user_prompt: str) -> str:
+def call_LLM(system_prompt: str, user_prompt: str) -> str:
     try:
-        full_prompt = f"{system_prompt}\n\n{user_prompt}"
-
-        response = client.models.generate_content(
-            model="gemini-3.8-flash",
-            contents=full_prompt
+        model_name = "gemma4:31b"
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {
+                    'role': 'system',
+                    'content': system_prompt
+                },
+                {
+                    'role': 'user',
+                    'content': user_prompt
+                }
+            ],
+            # -- This is optional for the output format --
+            # response_format={
+            #     "type": "json_schema",
+            #     "json_schema": {
+            #         "name": "json_file_name",
+            #     },
+            # },
+            temperature=0.7,
         )
         
-        return response.text
+        return response.choices[0].message.content
         
     except Exception as e:
-        logger.error(f"Error generating response from Gemini: {str(e)}")
+        logger.error(f"Error generating response: {str(e)}")
         return "Error generating explanation from AI."
 
 def run_semgrep(target_file: str) -> List:
@@ -151,7 +172,7 @@ if __name__ == "__main__":
             
             system_prompt = f"You are a security analyst or expert analyzing a code change."
             # Calling the LLM
-            explanation = call_gemini(system_prompt, user_prompt).lstrip()
+            explanation = call_LLM(system_prompt, user_prompt).lstrip()
 
             # This checks if the file name is already in the final results
             if file not in explanations:

@@ -48,13 +48,14 @@ class VulnerabilityDecorationProvider implements vscode.FileDecorationProvider {
 
 export function activate(context: vscode.ExtensionContext) {
 
-    const outputChannel = vscode.window.createOutputChannel("Explainify Analyzer");
+    const outputChannel = vscode.window.createOutputChannel("Explainify Analyser");
     const diagnosticCollection = vscode.languages.createDiagnosticCollection("explainify");
     context.subscriptions.push(diagnosticCollection);
 
     const decorationProvider = new VulnerabilityDecorationProvider();
     context.subscriptions.push(vscode.window.registerFileDecorationProvider(decorationProvider));
 
+    // TODO: Make the color depend on theme, or allow user to configure it.
     const vulnerabilityDecorationType = vscode.window.createTextEditorDecorationType({
         textDecoration: 'underline wavy yellow', 
         overviewRulerColor: 'yellow',
