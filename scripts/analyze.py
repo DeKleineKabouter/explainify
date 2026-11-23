@@ -21,29 +21,18 @@ client = OpenAI(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Prompt template
+# Prompt templates
 SYSTEM_TEMPLATE = """
-Context:
-- The code below was flagged by a static analysis tool (Semgrep).
-- Semgrep Message: "{semgrep_message}"
-- Related CWEs: {cwe_id}
+You are an assistant with expertise in explaining
+software security vulnerabilities in code snippets. You will
+be given a code snippet and the result from Semgrep for the code snippet.
 
 Your task is:
 1. Analyze the "Code Context" and the specific "Vulnerable Snippet".
 2. Explain the vulnerability using the Semgrep finding as a guide.
 3. Determine why this specific pattern is dangerous in this context.
 
-Here is the code to analyze:
-
-Code Context (Surrounding lines):
-{file_lines}
-
-Vulnerable Snippet (Flagged lines):
-{code_snippet}
-
----
-
-Now provide your explanation by filling in the following template:
+Provide your explanation by filling in the following template:
 - Vulnerability Type: 
 - Severity: 
 - Root cause:
@@ -52,6 +41,24 @@ Now provide your explanation by filling in the following template:
 - Security implications:
 - Suggested fix: [do not mention the message, describe it as if you suggested the fix]
 """
+
+USER_TEMPLATE = """
+The code below was flagged by Semgrep. Explain the vulnerability detected in the code snippet to
+a developer who has {level} experience in software security.
+
+Semgrep Message: "{semgrep_message}"
+
+Related CWEs: {cwe_id}
+
+Here is the code to analyze:
+
+Code Context (Surrounding lines):
+{file_lines}
+
+Vulnerable Snippet (Flagged lines):
+{code_snippet}
+"""
+
 
 def call_LLM(system_prompt: str, user_prompt: str) -> str:
     try:
@@ -163,14 +170,15 @@ if __name__ == "__main__":
             code_snippet = extract_code_context(target_file_path, file, start, end)
 
             # Constructing the user and system prompts
-            user_prompt = SYSTEM_TEMPLATE.format(
+            user_prompt = USER_TEMPLATE.format(
                 semgrep_message=finding['message'],
                 cwe_id=finding['vuln_ids'],
                 file_lines=all_lines_final,
-                code_snippet=code_snippet
+                code_snippet=code_snippet,
+                level="beginner" # TODO: Make this dynamic based on configuration
             )
             
-            system_prompt = f"You are a security analyst or expert analyzing a code change."
+            system_prompt = SYSTEM_TEMPLATE
             # Calling the LLM
             explanation = call_LLM(system_prompt, user_prompt).lstrip()
 
