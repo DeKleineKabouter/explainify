@@ -22,6 +22,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Prompt templates
+# TODO?: Copy less directly from the SAFE paper.
 SYSTEM_TEMPLATE = """
 You are an assistant with expertise in explaining
 software security vulnerabilities in code snippets. You will
@@ -33,13 +34,7 @@ Your task is:
 3. Determine why this specific pattern is dangerous in this context.
 
 Provide your explanation by filling in the following template:
-- Vulnerability Type: 
-- Severity: 
-- Root cause:
-- Exploit scenario:
-- Why it happens:
-- Security implications:
-- Suggested fix: [do not mention the message, describe it as if you suggested the fix]
+{template}
 """
 
 USER_TEMPLATE = """
@@ -57,6 +52,23 @@ Code Context (Surrounding lines):
 
 Vulnerable Snippet (Flagged lines):
 {code_snippet}
+"""
+
+BASIC_TEMPLATE = """
+- Vulnerability Type: 
+- Severity: 
+- Root cause:
+- Suggested fix: [do not mention the message, describe it as if you suggested the fix]
+"""
+
+DETAILED_TEMPLATE = """
+- Vulnerability Type: 
+- Severity: 
+- Root cause:
+- Exploit scenario:
+- Why it happens:
+- Security implications:
+- Suggested fix: [do not mention the message, describe it as if you suggested the fix]
 """
 
 
@@ -91,7 +103,7 @@ def call_LLM(system_prompt: str, user_prompt: str) -> str:
         logger.error(f"Error generating response: {str(e)}")
         return "Error generating explanation from AI."
 
-def run_semgrep(target_file: str) -> List:
+def run_semgrep(target_file: str, config: str) -> List:
     # Using full path to the output file, otherwise it's safed somewhere else
     script_dir = os.path.dirname(os.path.abspath(__file__))
     output_file = os.path.join(script_dir, "semgrep_temp_results.json")
@@ -106,7 +118,7 @@ def run_semgrep(target_file: str) -> List:
     # Commands used to run Semgrep
     cmd = [
         semgrep_executable, "scan",
-        "--config=auto",
+        f"--config={config}",
         "--verbose",
         "--no-git-ignore",
         "--json",
@@ -148,14 +160,24 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         sys.exit(1)
 
+    config = json.loads(os.environ.get("EXPLAINIFY_CONFIG", "{}"))
+
+    # TODO: Read this from config
+    semgrepConfig = config.get("semgrepConfig", "auto")
+    level = config.get("level", "beginner")
+    detailed = config.get("detailed", True)
+
     target_file_path = sys.argv[1]
-    findings = run_semgrep(target_file_path)
+    findings = run_semgrep(target_file_path, semgrepConfig)
 
     sm = Semgrep.Semgrep()
     sm.set_results()
     results_list = sm.result_list
     path_to_files = "java_files/"
     explanations = {}
+
+    template = DETAILED_TEMPLATE if detailed else BASIC_TEMPLATE
+    system_prompt = SYSTEM_TEMPLATE.format(template=template)
 
     # Looping through the results from Semgrep by file
     for file in results_list:
@@ -175,10 +197,9 @@ if __name__ == "__main__":
                 cwe_id=finding['vuln_ids'],
                 file_lines=all_lines_final,
                 code_snippet=code_snippet,
-                level="beginner" # TODO: Make this dynamic based on configuration
+                level=level
             )
             
-            system_prompt = SYSTEM_TEMPLATE
             # Calling the LLM
             explanation = call_LLM(system_prompt, user_prompt).lstrip()
 

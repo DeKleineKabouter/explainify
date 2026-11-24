@@ -25,7 +25,32 @@
         "uiTheme": "vs-dark",
         "path": "./themes/explainify-theme.json"
       }
-    ]
+    ],
+    "configuration": {
+    "title": "Explainify",
+      "properties": {
+        "explainify.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Python interpreter used to run the analysis script."
+        },
+        "explainify.semgrep.config": {
+          "type": "string",
+          "default": "auto",
+          "description": "Semgrep --config value: auto, a registry ruleset (p/java), or a path to rule files."
+        },
+        "explainify.explanation.detailed": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include exploit scenario, why it happens, and security implications. Otherwise, only explain the cause and fix."
+        },
+        "explainify.explanation.level": {
+          "type": "string",
+          "default": "beginner",
+          "description": "The level of experience in software security of the user. E.g. 'beginner', 'intermediate', 'expert', '10 years of'."
+        }
+      }
+    }
   },
   
   "scripts": {
