@@ -77,6 +77,7 @@ export function activate(context: vscode.ExtensionContext) {
         const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
         const scriptPath = path.join(context.extensionPath, 'scripts', 'analyze.py');
 
+        //TODO: Add more config options, like severity filter, junior/senior developers, color scheme.
         const cfg = vscode.workspace.getConfiguration('explainify');
         const settings = {
         semgrepConfig: cfg.get<string>('semgrep.config', 'auto'),
@@ -96,7 +97,7 @@ export function activate(context: vscode.ExtensionContext) {
         }, async () => {
             
             return new Promise<void>((resolve) => { 
-                const pythonCommand = `"${python}" "${scriptPath}" "${workspaceRoot}"`;
+                const pythonCommand = `${python} "${scriptPath}" "${workspaceRoot}"`;
 
                 exec(pythonCommand, { env: { ...process.env, EXPLAINIFY_CONFIG: JSON.stringify(settings) } },
                  (error, stdout, stderr) => {

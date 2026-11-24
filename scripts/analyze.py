@@ -162,7 +162,6 @@ if __name__ == "__main__":
 
     config = json.loads(os.environ.get("EXPLAINIFY_CONFIG", "{}"))
 
-    # TODO: Read this from config
     semgrepConfig = config.get("semgrepConfig", "auto")
     level = config.get("level", "beginner")
     detailed = config.get("detailed", True)
