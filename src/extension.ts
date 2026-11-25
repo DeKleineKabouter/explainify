@@ -104,8 +104,6 @@ export function activate(context: vscode.ExtensionContext) {
                  (error, stdout, stderr) => {
                     cancellationHandler.dispose();
 
-                    if (stderr) outputChannel.appendLine(`[Log]: ${stderr}`);
-
                     if (error && !stdout) {
                         vscode.window.showErrorMessage("Analysis failed. Check Output panel.");
                         outputChannel.appendLine(`Execution Error: ${error.message}`);
@@ -216,6 +214,10 @@ export function activate(context: vscode.ExtensionContext) {
                         outputChannel.appendLine(`Output: "${stdout}"`);
                     }
                     resolve();
+                });
+
+                child.stderr?.on('data', chunk => {
+                    outputChannel.append(chunk.toString());
                 });
 
                 const cancellationHandler = token.onCancellationRequested(() => {

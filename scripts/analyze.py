@@ -21,6 +21,7 @@ client = AsyncOpenAI(
 )
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Prompt templates
@@ -179,6 +180,9 @@ async def main():
     explanations = {}
     user_prompts = {}
 
+    completed = 0
+    total = 0
+
     template = DETAILED_TEMPLATE if detailed else BASIC_TEMPLATE
     system_prompt = SYSTEM_TEMPLATE.format(template=template)
 
@@ -213,11 +217,12 @@ async def main():
                     "line": start,
                     "endLine": end,
                     "message": finding['message'],
-                    "ai_explanation": "not generated",
+                    "ai_explanation": "Not generated.",
                     "vulnerability": finding['vuln_ids']
                 }
             )
             user_prompts[file].append(user_prompt)
+            total += 1
 
     task = asyncio.current_task()
     threading.Thread(
@@ -226,12 +231,18 @@ async def main():
         daemon=True,
     ).start()
 
+    logger.info(f"Starting AI analysis for {total} findings.")
+
     # Only now, after parsing all the semgrep results, we do the LLM calls.
     try:
         for file in user_prompts:
             for i, user_prompt in enumerate(user_prompts[file]):
                 explanation = (await call_LLM(system_prompt, user_prompt)).lstrip()
+                completed += 1
                 explanations[file][i]["ai_explanation"] = explanation
+
+                # Logging the progress of the analysis
+                logger.info(f"Completed {completed}/{total} AI calls.")
 
     except asyncio.CancelledError:
         logger.info("Analysis cancelled; keeping completed results.")
