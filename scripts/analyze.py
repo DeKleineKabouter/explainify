@@ -25,11 +25,10 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Prompt templates
-# TODO?: Copy less directly from the SAFE paper.
 SYSTEM_TEMPLATE = """
 You are an assistant with expertise in explaining
 software security vulnerabilities in code snippets. You will
-be given a code snippet and the result from Semgrep for the code snippet.
+be given a code snippet and the Semgrep findings for the code.
 
 Your task is:
 1. Analyze the "Code Context" and the specific "Vulnerable Snippet".
@@ -41,7 +40,7 @@ Provide your explanation by filling in the following template:
 """
 
 USER_TEMPLATE = """
-The code below was flagged by Semgrep. Explain the vulnerability detected in the code snippet to
+The code below was flagged by Semgrep. Explain the vulnerability detected in the code to
 a developer who has {level} experience in software security.
 
 Semgrep Message: "{semgrep_message}"
