@@ -6,6 +6,7 @@ import os
 import shutil
 import logging
 import Semgrep
+import threading
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from typing import List
@@ -99,6 +100,12 @@ async def call_LLM(system_prompt: str, user_prompt: str) -> str:
     except Exception as e:
         logger.error(f"Error generating response: {str(e)}")
         return "Error generating explanation from AI."
+
+def watch_for_cancel(loop, task):
+    for line in sys.stdin:
+        if line.strip() == "CANCEL":
+            loop.call_soon_threadsafe(task.cancel)
+            return
 
 def run_semgrep(target_file: str, config: str) -> List:
     # Using full path to the output file, otherwise it's safed somewhere else
@@ -212,6 +219,13 @@ async def main():
             )
             user_prompts[file].append(user_prompt)
 
+    task = asyncio.current_task()
+    threading.Thread(
+        target=watch_for_cancel,
+        args=(asyncio.get_running_loop(), task),
+        daemon=True,
+    ).start()
+
     # Only now, after parsing all the semgrep results, we do the LLM calls.
     try:
         for file in user_prompts:
@@ -223,7 +237,7 @@ async def main():
         logger.info("Analysis cancelled; keeping completed results.")
         
     # Printing this ensures that the typescript file gets the explanations
-    print(json.dumps(explanations, indent=2))
+    print(json.dumps(explanations, indent=2), flush=True)
     sm.delete_semgrep_file()
 
 if __name__ == "__main__":
