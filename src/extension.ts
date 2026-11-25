@@ -93,14 +93,17 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: "Scanning project for vulnerabilities...",
-            cancellable: false
-        }, async () => {
-            
+            cancellable: true
+        }, async (_progress, token) => {
             return new Promise<void>((resolve) => { 
+                let cancelled = false;
+
                 const pythonCommand = `${python} "${scriptPath}" "${workspaceRoot}"`;
 
-                exec(pythonCommand, { env: { ...process.env, EXPLAINIFY_CONFIG: JSON.stringify(settings) } },
+                const child = exec(pythonCommand, { env: { ...process.env, EXPLAINIFY_CONFIG: JSON.stringify(settings) } },
                  (error, stdout, stderr) => {
+                    cancellationHandler.dispose();
+
                     if (stderr) outputChannel.appendLine(`[Log]: ${stderr}`);
 
                     if (error && !stdout) {
@@ -213,6 +216,12 @@ export function activate(context: vscode.ExtensionContext) {
                         outputChannel.appendLine(`Output: "${stdout}"`);
                     }
                     resolve();
+                });
+
+                const cancellationHandler = token.onCancellationRequested(() => {
+                    cancelled = true;
+                    child.stdin?.write("CANCEL\n");
+                    child.stdin?.end();
                 });
             });
         });

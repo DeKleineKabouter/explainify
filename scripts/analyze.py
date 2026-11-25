@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import json
 import subprocess
@@ -5,13 +6,13 @@ import os
 import shutil
 import logging
 import Semgrep
-from openai import OpenAI
+from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from typing import List
 
 load_dotenv()
 
-client = OpenAI(
+client = AsyncOpenAI(
     base_url="https://chat.science.ru.nl/api",
     api_key=os.environ["RAD_API_KEY"],
     timeout=120.0,
@@ -72,10 +73,10 @@ DETAILED_TEMPLATE = """
 """
 
 
-def call_LLM(system_prompt: str, user_prompt: str) -> str:
+async def call_LLM(system_prompt: str, user_prompt: str) -> str:
     try:
         model_name = "gemma4:31b"
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=model_name,
             messages=[
                 {
@@ -87,17 +88,13 @@ def call_LLM(system_prompt: str, user_prompt: str) -> str:
                     'content': user_prompt
                 }
             ],
-            # -- This is optional for the output format --
-            # response_format={
-            #     "type": "json_schema",
-            #     "json_schema": {
-            #         "name": "json_file_name",
-            #     },
-            # },
             temperature=0.7,
         )
         
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        if content is None:
+            raise ValueError("AI response did not contain text.")
+        return content
         
     except Exception as e:
         logger.error(f"Error generating response: {str(e)}")
@@ -156,7 +153,7 @@ def extract_code_context(base_path: str, relative_path: str, start_line: int, en
     except Exception: 
         return "Could not read source file."
 
-if __name__ == "__main__":  
+async def main():
     if len(sys.argv) < 2:
         sys.exit(1)
 
@@ -172,8 +169,8 @@ if __name__ == "__main__":
     sm = Semgrep.Semgrep()
     sm.set_results()
     results_list = sm.result_list
-    path_to_files = "java_files/"
     explanations = {}
+    user_prompts = {}
 
     template = DETAILED_TEMPLATE if detailed else BASIC_TEMPLATE
     system_prompt = SYSTEM_TEMPLATE.format(template=template)
@@ -198,24 +195,36 @@ if __name__ == "__main__":
                 code_snippet=code_snippet,
                 level=level
             )
-            
-            # Calling the LLM
-            explanation = call_LLM(system_prompt, user_prompt).lstrip()
 
             # This checks if the file name is already in the final results
             if file not in explanations:
                 explanations[file] = []
+                user_prompts[file] = []
 
             explanations[file].append(
                 {
                     "line": start,
                     "endLine": end,
                     "message": finding['message'],
-                    "ai_explanation": explanation,
+                    "ai_explanation": "not generated",
                     "vulnerability": finding['vuln_ids']
                 }
             )
-    
+            user_prompts[file].append(user_prompt)
+
+    # Only now, after parsing all the semgrep results, we do the LLM calls.
+    try:
+        for file in user_prompts:
+            for i, user_prompt in enumerate(user_prompts[file]):
+                explanation = (await call_LLM(system_prompt, user_prompt)).lstrip()
+                explanations[file][i]["ai_explanation"] = explanation
+
+    except asyncio.CancelledError:
+        logger.info("Analysis cancelled; keeping completed results.")
+        
     # Printing this ensures that the typescript file gets the explanations
     print(json.dumps(explanations, indent=2))
     sm.delete_semgrep_file()
+
+if __name__ == "__main__":
+    asyncio.run(main())
